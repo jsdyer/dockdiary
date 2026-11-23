@@ -1,116 +1,71 @@
-# CoolCode browser tool template
+# Dock Diary
 
-A starting point for independent tools at `coolcode.ca/<repo>/`: a working local-text
-example, responsive UI, Python standard-library build, Node tests, PR checks and Pages
-publication. No npm install is needed.
-
-## Using the example
+A bike-share station explorer and sampled-availability diary, starting with Vancouver's Mobi network. The public app reads retained hourly captures, searches the full CityBikes directory, supports a manual current lookup for any station-based network, and compares station observations by local weekday/hour. No account or API key is needed.
 
 <!-- coolcode:guide -->
-The first occurrence of each trimmed line keeps its place. Compare the output with the original text before copying the result.
+Choose a network and use **Fetch current availability**, then select a station to inspect bikes, return spaces and a weekday/hour heatmap. Vancouver starts with a real retained capture; the history grows through hourly scheduled checks. An empty heatmap cell means no observations, not uninterrupted availability. A percentage is the share of sampled, distinct observations with zero bikes or spaces, not the share of time unavailable and not a trip count. Download **Save diary JSON** before closing the tab to retain manual lookups; imports and comparisons stay local. Edit **web/config.json** to add tracked networks and their time zones, then run **Dock Diary · Capture, check and publish** to begin retaining them.
 <!-- /coolcode:guide -->
 
-For a real tool, replace this paragraph with one or two plain-text sentences
-about an example, a limit or how to interpret the results. Keep the source,
-coverage, refresh behaviour and a worked example in this README as appropriate.
-When updating a tool, revise any details its behaviour has changed and keep the
-homepage's shorter data-source sentence in `tool.json` accurate.
-The hub imports the marked note into the catalogue README.
+## Use it
 
-## One-time template setup
+1. Open [Dock Diary](https://coolcode.ca/dockdiary/). The saved Mobi capture loads immediately without contacting CityBikes.
+2. Search stations by name or ID. Filter empty, full, paused or stale station readings. Select any result to see its timestamp, counts and an OpenStreetMap link.
+3. Change **Dated capture** to inspect an earlier saved response. Its counts and freshness are calculated for that response; its history stops at that capture.
+4. A station's heatmap groups source observations by the chosen IANA time zone. Click an hour to inspect its denominator. Asterisks identify cells below the configurable minimum sample count (three initially).
+5. Use the full network directory to choose another city and **Fetch current availability**. New queries are opt-in, one request per click with a 30-second cooldown. A failed lookup retains the previous visible result. Networks with only roaming vehicles and no stations are explicitly unsupported by this station diary.
+6. **Save diary JSON** downloads all captures held for the displayed network. **Export capture CSV** downloads the selected capture. **Import a diary** merges the same network's captures in tab memory; these never automatically enter the public repository. Imported files are capped at 30 MB and validated.
 
-Enable **Settings → General → Template repository** here. This repository does not
-need Pages enabled: its workflow builds/tests but intentionally skips deployment.
-New copies also skip deployment until `scripts/init.py` sets the tool ID to match
-their repository name. This lets you create the repo before configuring Pages.
+For example, three distinct Monday 08:00 station observations with bike counts 0, 3 and 0 show **67%** sampled unavailability. They do not show that the station was empty for 40 minutes. At launch most cells have no samples; useful comparisons require repeated observations over time.
 
-## Start a new tool
+## Data and interpretation
 
-1. Select **Use this template → Create a new repository**, choose owner `jsdyer`,
-   a unique lowercase name such as `my-tool`, and public visibility.
-2. Clone the new repository. Use Python 3.12+ and Node 24+.
-3. Set the identity, using a slug that matches the repository name:
+- Source: [CityBikes v2](https://docs.citybik.es/api/) and [API schema](https://api.citybik.es/v2/), supplied by [CityBikes](https://citybik.es/). This project visibly attributes and links CityBikes under its [terms](https://docs.citybik.es/api/tos).
+- Basic public access is limited to **300 requests per hour**. This collector normally uses two hourly requests: the directory and one configured network. Request a key from CityBikes only if a future deployment genuinely needs more; do not add one to browser code.
+- The initial directory was fetched on 23 November 2026 and contains **815 networks**. The initial Mobi capture contains **261 stations**. These are initial source counts, not limits; the UI derives them from the actual directory and selected capture.
+- Available bikes and empty docks are instantaneous source values. They are not demand, trip counts or durations. Maintenance, rebalancing and service pauses can affect them. Unknown values remain null; zero remains zero.
+- `capturedAt` is our retrieval timestamp. Each observation also preserves the provider's station update timestamp, using `extra.last_updated` when supplied and the CityBikes station timestamp otherwise. CityBikes' duplicated `+00:00Z` suffix is normalized, and naive source timestamps are treated as UTC.
+- Heatmaps count distinct station timestamps once. Readings older than `staleMinutes` **at capture**, absent counts and relevant explicitly paused rental/return service are excluded. A missing service flag is retained as unknown rather than invented. Check the operator before travelling.
+- Historical captures keep their own station coverage; new and removed stations do not rewrite old counts. Station labels/coordinates use the newest captured metadata for that station ID. Capture gaps and short sample histories remain visible.
+- [CityBikes historical data](https://data.citybik.es/) is a separate upstream resource; this app does **not** claim to import that archive. Its diary begins with its actual first saved capture.
 
-```sh
-python3 scripts/init.py my-tool --title "My Tool" --description "Describe what this tool does."
+## Expand or customize
+
+Edit **`web/config.json`**. Defaults are conveniences, never an exclusive UI list. The browser directory permits all station-based networks returned by CityBikes. To retain Toronto alongside Vancouver, append:
+
+```json
+{"id":"bixi-toronto","label":"Toronto · Bike Share Toronto","timezone":"America/Toronto"}
 ```
 
-Review the category, tags and icon in `tool.json`. `access: "browser"` tells the main
-catalogue that the tool works immediately without installation. `--owner` supports a different
-GitHub owner, but only projects owned by `jsdyer` inherit the CoolCode domain.
+The full configuration fields are:
 
-4. Replace the example in `web/` and its tests. Update the privacy explanation,
-   source attribution and README to describe the real tool.
-5. Test and preview:
+| Field | Meaning |
+| --- | --- |
+| `defaultNetwork` | Initially displayed tracked network ID. Must be present in `trackedNetworks`. |
+| `trackedNetworks` | Objects with CityBikes `id`, descriptive `label` and an IANA `timezone`. |
+| `historyDays` | Rolling published history, initially 28 days; allowed 1–90. |
+| `maxCapturesPerNetwork` | Hard capture bound, initially 672; allowed 1–2160. Older captures remain in Git history after rolling out. |
+| `staleMinutes` | Maximum source age at retrieval for aggregate counts and heatmaps, initially 60. |
+| `minimumSamplesPerCell` | Threshold for the low-sample asterisk, initially 3. It is not a statistical confidence claim. |
+| `maxStationsPerNetwork` | Collector response sanity bound, initially 15,000; can expand up to 30,000. |
+| `maxTrackedNetworks` | Collector request budget, initially 12; at most 30. |
+| `requestTimeoutSeconds` | Per-request timeout, initially 35 seconds. |
+| `liveCooldownSeconds` | Browser's minimum interval between manual lookups, initially 30 seconds. |
+
+**Refresh after editing:** Commit/push the config, then open Actions → **Dock Diary · Capture, check and publish** → **Run workflow** on `main`. An ordinary code push builds the existing data offline; it does not fetch new observations. The manual and hourly `:17` UTC runs call `scripts/collect.py`, validate all configured networks, run tests and the browser check, commit only the data, and deploy. The new network then appears in the public retained diary. Locally:
 
 ```sh
+python3 scripts/collect.py
 node --test tests/*.test.mjs
 python3 -m unittest discover -s tests -v
 python3 scripts/build.py
-python3 -m http.server 8000 --directory dist
 ```
 
-Open `http://localhost:8000/`. The example trims lines, skips blanks and removes exact
-duplicates, preserving first-seen order and capitalization. It processes the text in tab memory. Update that explanation if your app behaves differently.
+Collection is all-or-nothing for the configured set: unavailable/invalid sources fail before replacing saved files, and failed CI does not deploy. GitHub schedules can be delayed, skipped or disabled after prolonged repository inactivity. Inspect the displayed capture date, not just whether the site loads. Data are rolling retained captures, not an indefinitely growing full archive. Download diaries when you want an independent copy.
 
-CI also tests the browser flow and mobile layout at a project subpath. Replace the
-sample assertions in `tests/browser_smoke.py` when implementing your own UI. To run
-that check locally (optional for ordinary preview):
+## Privacy and operation
 
-```sh
-python3 -m venv .venv
-. .venv/bin/activate
-python3 -m pip install -r tests/browser-requirements.txt
-python3 -m playwright install --with-deps chromium
-python3 tests/browser_smoke.py
-```
+The page loads its own saved JSON by default. A manual lookup sends only the selected network ID (plus ordinary connection information) to CityBikes. It does not request your device location. Station search, imported files and exports are processed locally without persistence. No API key, framework or runtime server is required. Shared CoolCode aggregate page metrics and the report link are added by the build.
 
-Playwright is a test-only dependency; the app and its static build do not use it.
+The app works from a project subpath, with relative assets. GitHub Pages serves `dist/`; no CNAME or Cloudflare service is required. UI source is in `web/`; pure transformations are in `web/model.mjs`; the standard-library collector is `scripts/collect.py`. `tests/browser_smoke.py` runs in CI, checking saved data, filtering, export, failure retention and mobile overflow.
 
-## Publish and register
-
-When the actual tool is ready, in the **new tool repository** set **Settings → Pages → Build and deployment →
-Source → GitHub Actions**. Push to `main`, or manually run **Browser tool · Check and
-publish** after enabling Pages. If the initial deployment ran before Pages was enabled,
-enable it and rerun. PRs only check/build and provide a downloadable preview artifact.
-
-Keep `{{VISIT_COUNTER}}` in the page head and `{{ISSUE_LINK}}` in the footer when replacing the starter UI. The build enables these for initialized CoolCode repositories. The shared counter records aggregate opens on coolcode.ca by public tool ID. Toolbox inputs and URL parameters are excluded. The issue link opens a reporting form with the tool already selected.
-
-Keep app-owned asset paths and module imports relative. Check `https://coolcode.ca/my-tool/`.
-Do not add a CNAME or set `coolcode.ca` as this project's custom domain; the account
-site supplies it. Only successful `main` builds deploy.
-
-After verifying the app, copy the reviewed object from `tool.json` into `data/tools.json`
-in [the main site](https://github.com/jsdyer/jsdyer.github.io). Each tool still builds
-independently. Update the hub record when listing metadata changes; the hub is the
-authority for discovery. Ordinary app updates touch only this repository.
-
-The main site separates **Use in your browser** from **Install yourself**. An app
-that asks for a file is still a browser tool. Standalone Linux packages should start
-in their own repositories with their own build/release workflow, rather than copying
-this browser-only scaffold. Their hub record uses `access: "install"`, links to an
-installation guide, and includes `requirements`.
-
-## Files
-
-| Path | Purpose |
-| --- | --- |
-| `tool.json` | Page metadata and a ready-to-copy catalogue record |
-| `web/` | HTML, responsive CSS, DOM interactions and separate model logic |
-| `scripts/build.py` | Escape metadata and build `web/` into `dist/` |
-| `scripts/init.py` | Set a new project's identity |
-| `tests/` | Application and builder tests |
-| `.github/workflows/pages.yml` | Check PRs and publish successful main builds |
-| `AGENTS.md` | Instructions for future coding work |
-
-Namespace optional storage as `coolcode:<tool-id>:<key>`; CoolCode paths share a
-browser origin. Don't save pasted text/uploads by default. Document external APIs
-and send only the information needed for the selected action. Never embed secrets.
-
-Scheduled refresh is opt-in. Validate source data before deploying, display its date,
-and preserve the last good deployment on failure. Public-repository schedules can
-stop after 60 days without repository activity.
-
-Templates don't propagate future edits automatically. Adopt fixes explicitly and
-consider a versioned reusable workflow once several tools confirm the shared process.
-Choose and add the intended software license before distributing a new project.
+Related tools: [Trailglass](https://coolcode.ca/trailglass/) and [Road Pulse](https://coolcode.ca/roadpulse/).

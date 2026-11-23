@@ -1,7 +1,38 @@
-// Keep transformations separate from the DOM so they can be tested directly.
-export function cleanLines(text) {
-  if (typeof text !== 'string') throw new TypeError('Expected text');
-  const lines = text.split(/\r\n|\r|\n/).map(line => line.trim()).filter(Boolean);
-  const unique = [...new Set(lines)];
-  return { text: unique.join('\n'), count: unique.length, removed: lines.length - unique.length };
+export const SCHEMA='coolcode.dockdiary.v1';
+export const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+export function number(value){return Number.isInteger(value)&&value>=0&&value<=100000?value:null;}
+export function iso(value){if(typeof value==='number'&&Number.isFinite(value))return new Date(value*1000).toISOString();if(typeof value!=='string')throw Error('Missing station observation time.');let text=value.replace('+00:00Z','Z');if(!/(?:Z|[+-]\d\d:\d\d)$/.test(text))text+='Z';const date=new Date(text);if(!Number.isFinite(date.getTime()))throw Error('Unrecognized station observation time.');return date.toISOString();}
+export function timezone(value){try{new Intl.DateTimeFormat('en',{timeZone:value}).format();return value;}catch{return 'UTC';}}
+export function networkId(value){if(!/^[a-z0-9][a-z0-9_-]{0,100}$/.test(value))throw Error('Choose a valid CityBikes network.');return value;}
+export function normalizeLive(raw,zone='UTC',capturedAt=new Date().toISOString()){
+ const n=raw?.network;if(!n||!Array.isArray(n.stations)||!n.stations.length||n.stations.length>30000)throw Error('The network did not return usable station records.');
+ const stations={},rows=[];networkId(n.id);
+ for(const s of n.stations){if(typeof s.id!=='string'||!s.id||s.id.length>150||Object.hasOwn(stations,s.id)||typeof s.name!=='string')throw Error('Unrecognized station identity.');const e=s.extra||{},lat=s.latitude,lon=s.longitude;
+ stations[s.id]={name:s.name.slice(0,300),latitude:typeof lat==='number'&&Math.abs(lat)<=90?lat:null,longitude:typeof lon==='number'&&Math.abs(lon)<=180?lon:null};
+ const flag=v=>[true,false,0,1].includes(v)?Boolean(v):null;
+ rows.push([s.id,number(s.free_bikes),number(s.empty_slots),iso(e.last_updated||s.timestamp),flag(e.renting),flag(e.returning)]);}
+ return validateArchive({schema:SCHEMA,network:{id:n.id,name:n.name||n.id,city:n.location?.city||'',country:n.location?.country||'',timezone:timezone(zone)},stations,captures:[{capturedAt,rows}],source:`https://api.citybik.es/v2/networks/${n.id}`});
 }
+export function validateArchive(data){
+ if(!data||data.schema!==SCHEMA||!data.network||typeof data.network.name!=='string')throw Error('This is not a Dock Diary receipt.');networkId(data.network.id);
+ if(!data.stations||typeof data.stations!=='object'||Array.isArray(data.stations)||Object.keys(data.stations).length>30000)throw Error('Invalid station metadata.');
+ for(const s of Object.values(data.stations)){if(!s||typeof s.name!=='string'||s.name.length>300)throw Error('Invalid station name.');for(const [k,max] of [['latitude',90],['longitude',180]])if(s[k]!==null&&(typeof s[k]!=='number'||!Number.isFinite(s[k])||Math.abs(s[k])>max))throw Error('Invalid station coordinates.');}
+ if(!Array.isArray(data.captures)||!data.captures.length||data.captures.length>2160)throw Error('Receipt must contain 1–2160 captures.');
+ const times=new Set();let total=0;
+ for(const c of data.captures){if(typeof c.capturedAt!=='string'||!Number.isFinite(Date.parse(c.capturedAt))||times.has(c.capturedAt))throw Error('Invalid or duplicated capture date.');times.add(c.capturedAt);const seen=new Set();
+ if(!Array.isArray(c.rows)||!c.rows.length||c.rows.length>30000)throw Error('Invalid capture rows.');total+=c.rows.length;if(total>2000000)throw Error('Receipt exceeds the supported observation limit.');
+ for(const r of c.rows){if(!Array.isArray(r)||r.length!==6||typeof r[0]!=='string'||!Object.hasOwn(data.stations,r[0])||seen.has(r[0]))throw Error('Invalid station row.');seen.add(r[0]);
+ if((r[1]!==null&&number(r[1])===null)||(r[2]!==null&&number(r[2])===null)||typeof r[3]!=='string'||!Number.isFinite(Date.parse(r[3]))||![true,false,null].includes(r[4])||![true,false,null].includes(r[5]))throw Error('Invalid availability reading.');
+ if(Date.parse(r[3])>Date.parse(c.capturedAt)+300000)throw Error('Station observation is later than its capture.');}}
+ data.captures.sort((a,b)=>Date.parse(a.capturedAt)-Date.parse(b.capturedAt));return data;
+}
+export function mergeArchives(old,added,limit=672){validateArchive(added);if(!old)return added;validateArchive(old);if(old.network.id!==added.network.id)throw Error('Receipts belong to different networks.');const captures=new Map(old.captures.map(c=>[c.capturedAt,c]));for(const c of added.captures)captures.set(c.capturedAt,c);return {...added,stations:{...old.stations,...added.stations},captures:[...captures.values()].sort((a,b)=>Date.parse(a.capturedAt)-Date.parse(b.capturedAt)).slice(-limit)};}
+export function ageMinutes(row,capturedAt){return (Date.parse(capturedAt)-Date.parse(row[3]))/60000;}
+export function status(row,capturedAt,stale=60){if(ageMinutes(row,capturedAt)>stale)return 'Stale reading';if(row[4]===false&&row[5]===false)return 'Service paused';if(row[1]===0&&row[2]===0)return 'No bikes or spaces';if(row[4]===false)return 'Rentals paused';if(row[5]===false)return 'Returns paused';if(row[1]===0)return 'No bikes';if(row[2]===0)return 'No spaces';if(row[1]===null||row[2]===null)return 'Partial reading';return 'Bikes & spaces';}
+export function stats(capture,stale=60){let bikes=0,docks=0,bikeKnown=0,dockKnown=0,empty=0,full=0,paused=0,staleCount=0;for(const r of capture.rows){if(ageMinutes(r,capture.capturedAt)>stale){staleCount++;continue;}if(r[4]===false||r[5]===false)paused++;if(r[1]!==null&&r[4]!==false){bikes+=r[1];bikeKnown++;if(r[1]===0)empty++;}if(r[2]!==null&&r[5]!==false){docks+=r[2];dockKnown++;if(r[2]===0)full++;}}return {bikes,docks,bikeKnown,dockKnown,empty,full,paused,stale:staleCount,total:capture.rows.length};}
+export function matchingRows(archive,capture,query='',filter='all',stale=60){const q=query.toLowerCase().trim();return capture.rows.filter(r=>{if(!(`${archive.stations[r[0]].name} ${r[0]}`).toLowerCase().includes(q))return false;const s=status(r,capture.capturedAt,stale);if(filter==='empty')return s==='No bikes'||s==='No bikes or spaces';if(filter==='full')return s==='No spaces'||s==='No bikes or spaces';if(filter==='paused')return s.includes('paused');if(filter==='stale')return s==='Stale reading';return true;}).sort((a,b)=>archive.stations[a[0]].name.localeCompare(archive.stations[b[0]].name));}
+export function heatmap(archive,station,metric='bikes',zone=archive.network.timezone,stale=60){const cells=Array.from({length:168},()=>({samples:0,zero:0,total:0}));const seen=new Set();const formatter=new Intl.DateTimeFormat('en-US',{timeZone:timezone(zone),weekday:'short',hour:'2-digit',hourCycle:'h23'});let excluded=0;
+ for(const c of archive.captures)for(const r of c.rows){if(r[0]!==station)continue;const key=r[0]+'|'+r[3];if(seen.has(key))continue;const index=metric==='docks'?2:1,enabled=metric==='docks'?5:4;if(r[index]===null||r[enabled]===false||ageMinutes(r,c.capturedAt)>stale){excluded++;continue;}seen.add(key);const parts=Object.fromEntries(formatter.formatToParts(new Date(r[3])).map(p=>[p.type,p.value]));const cell=cells[DAYS.indexOf(parts.weekday)*24+Number(parts.hour)];if(!cell)continue;cell.samples++;cell.total+=r[index];if(r[index]===0)cell.zero++;}
+ return {cells,excluded,samples:cells.reduce((n,c)=>n+c.samples,0),observedCells:cells.filter(c=>c.samples).length};}
+export function stationSeries(archive,id){const seen=new Set(),rows=[];for(const c of archive.captures)for(const row of c.rows)if(row[0]===id&&!seen.has(row[3])){seen.add(row[3]);rows.push({capturedAt:c.capturedAt,row});}return rows.sort((a,b)=>Date.parse(a.row[3])-Date.parse(b.row[3]));}
+export function csv(archive,capture){const cell=v=>{let s=String(v??'');if(/^[=+@-]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};return [['network','station_id','station','bikes','return_spaces','observed_at','captured_at','renting','returning'],...capture.rows.map(r=>[archive.network.id,r[0],archive.stations[r[0]].name,r[1],r[2],r[3],capture.capturedAt,r[4],r[5]])].map(row=>row.map(cell).join(',')).join('\r\n');}

@@ -1,0 +1,14 @@
+{
+  "defaultNetwork": "mobibikes",
+  "trackedNetworks": [
+    {"id": "mobibikes", "label": "Vancouver · Mobi", "timezone": "America/Vancouver"}
+  ],
+  "historyDays": 28,
+  "maxCapturesPerNetwork": 672,
+  "staleMinutes": 60,
+  "minimumSamplesPerCell": 3,
+  "maxStationsPerNetwork": 15000,
+  "maxTrackedNetworks": 12,
+  "requestTimeoutSeconds": 35,
+  "liveCooldownSeconds": 30
+}

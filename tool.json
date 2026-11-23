@@ -1,16 +1,24 @@
 {
-  "id": "coolcode-tool-template",
-  "title": "CoolCode Tool Starter",
-  "description": "A browser-only example that trims lines and removes exact duplicates.",
-  "category": "security",
-  "tags": ["text", "lines", "duplicates"],
-  "icon": "scan-search",
-  "url": "/coolcode-tool-template/",
-  "source": "https://github.com/jsdyer/coolcode-tool-template",
+  "id": "dockdiary",
+  "title": "Dock Diary",
+  "description": "Find bike-share stations and compare how often bikes or return spaces were unavailable.",
+  "category": "places",
+  "tags": [
+    "bike share",
+    "stations",
+    "Vancouver",
+    "mobility",
+    "availability",
+    "history"
+  ],
+  "icon": "bike",
+  "url": "/dockdiary/",
+  "source": "https://github.com/jsdyer/dockdiary",
   "hosting": "project",
   "access": "browser",
   "data_info": {
-    "mode": "local",
-    "detail": "The browser reads the text you paste and compares its lines."
+    "mode": "mixed",
+    "detail": "CityBikes station availability with retained hourly captures and optional current network lookups.",
+    "cadence": "Hourly"
   }
 }

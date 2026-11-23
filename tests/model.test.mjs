@@ -1,21 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanLines } from '../web/model.mjs';
-test('trims, removes blanks and preserves first-seen order', () => {
-  assert.deepEqual(cleanLines('  Halifax\nLangley\nHalifax\n\nVancouver  '), {
-    text: 'Halifax\nLangley\nVancouver', count: 3, removed: 1,
-  });
-});
-test('supports Windows and old Mac line endings', () => {
-  assert.equal(cleanLines('a\r\nb\ra').text, 'a\nb');
-});
-test('empty text and whitespace produce an empty result', () => {
-  assert.deepEqual(cleanLines(' \n\t'), { text: '', count: 0, removed: 0 });
-});
-test('preserves case and Unicode', () => {
-  assert.equal(cleanLines('Québec\nquébec\n東京\nQuébec').text, 'Québec\nquébec\n東京');
-});
-test('treats markup as ordinary text', () => {
-  assert.equal(cleanLines('<script>alert(1)</script>\n<script>alert(1)</script>').text, '<script>alert(1)</script>');
-});
-test('rejects non-text input', () => { assert.throws(() => cleanLines(null), TypeError); });
+import {normalizeLive,validateArchive,mergeArchives,stats,matchingRows,heatmap,stationSeries,status,csv,iso} from '../web/model.mjs';
+const captureAt='2026-11-23T11:00:00Z';
+const record=(id,bikes,docks,extra={})=>({id,name:id,latitude:49,longitude:-123,timestamp:'2026-11-23T10:50:00+00:00Z',free_bikes:bikes,empty_slots:docks,extra:{renting:true,returning:true,...extra}});
+const raw=stations=>({network:{id:'test-city',name:'Test City',location:{city:'Test',country:'CA'},stations}});
+const receipt=(stations,at=captureAt)=>normalizeLive(raw(stations),'America/Vancouver',at);
+test('preserves reported zero and distinguishes missing counts',()=>{const a=receipt([record('empty',0,12),record('unknown',null,null)]),s=stats(a.captures[0]);assert.equal(s.empty,1);assert.equal(s.bikeKnown,1);assert.equal(s.docks,12);assert.equal(a.captures[0].rows[1][1],null);});
+test('uses station timestamp and excludes stale and paused measures independently',()=>{const a=receipt([record('paused',0,3,{renting:false}),record('stale',0,0,{last_updated:'2026-11-23T07:00:00'})]);const s=stats(a.captures[0]);assert.equal(s.empty,0);assert.equal(s.stale,1);assert.equal(s.docks,3);assert.equal(status(a.captures[0].rows[0],captureAt),'Rentals paused');});
+test('hourly cells use local source time and de-duplicate repeated source timestamps',()=>{const a=receipt([record('s',0,5)]),b=receipt([record('s',0,5)],'2026-11-23T11:05:00Z'),merged=mergeArchives(a,b);const h=heatmap(merged,'s','bikes','Asia/Tokyo');assert.equal(h.samples,1);assert.equal(h.cells[19].samples,1);assert.equal(h.cells[19].zero,1);assert.equal(stationSeries(merged,'s').length,1);});
+test('new configured station is accepted and old coverage stays valid',()=>{const a=receipt([record('old',4,2)]),b=receipt([record('new',6,0)],'2026-11-23T11:05:00Z');const merged=mergeArchives(a,b);assert.equal(merged.captures.length,2);assert.deepEqual(Object.keys(merged.stations),['old','new']);assert.equal(matchingRows(merged,merged.captures[0])[0][0],'old');});
+test('compares two different observations as samples not duration or trips',()=>{const a=receipt([record('s',0,6)]),b=receipt([record('s',3,3,{last_updated:'2026-11-23T10:55:00Z'})],'2026-11-23T11:05:00Z');const h=heatmap(mergeArchives(a,b),'s','bikes','Asia/Tokyo');assert.equal(h.samples,2);assert.equal(h.cells[19].zero,1);assert.equal(h.cells[19].total,3);});
+test('does not mix networks, invalid timestamps or future observations',()=>{const a=receipt([record('s',1,1)]);const b=structuredClone(a);b.network.id='another';assert.throws(()=>mergeArchives(a,b));assert.throws(()=>receipt([record('s',2,2,{last_updated:'2027-01-01'})]));assert.throws(()=>iso('invalid'));});
+test('rejects duplicate station rows and malformed receipt counts',()=>{assert.throws(()=>receipt([record('s',1,2),record('s',3,2)]));const a=receipt([record('s',1,2)]);a.captures[0].rows[0][1]=-1;assert.throws(()=>validateArchive(a));});
+test('search and filters derive from captured values',()=>{const a=receipt([record('Granville',0,2),record('Waterfront',3,0)]);assert.equal(matchingRows(a,a.captures[0],'gran')[0][0],'Granville');assert.equal(matchingRows(a,a.captures[0],'','full')[0][0],'Waterfront');assert.equal(matchingRows(a,a.captures[0],'missing').length,0);});
+test('CSV quotes untrusted metadata and prevents spreadsheet formulas',()=>{const a=receipt([record('s',1,null)]);a.stations.s.name='=cmd,"text"';const out=csv(a,a.captures[0]);assert.match(out,/'=cmd,""text""/);assert.match(out,/observed_at/);});
+test('missing and paused readings are never zero samples',()=>{const a=receipt([record('s',null,0,{returning:false})]);assert.equal(heatmap(a,'s','bikes').samples,0);assert.equal(heatmap(a,'s','docks').samples,0);});

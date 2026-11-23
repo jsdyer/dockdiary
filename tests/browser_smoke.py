@@ -1,53 +1,49 @@
-"""Exercise the built starter at a project subpath in Chromium."""
+"""Exercise actual saved data, filters, history and export at a project subpath."""
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import json
 import shutil
 import tempfile
 import threading
 from playwright.sync_api import sync_playwright
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
+ROOT=Path(__file__).resolve().parents[1]
 class QuietHandler(SimpleHTTPRequestHandler):
-    def log_message(self, *args):
-        pass
-
+ def log_message(self,*args):pass
 
 def main():
-    screenshots = ROOT / "browser-checks"
-    screenshots.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory() as temporary:
-        shutil.copytree(ROOT / "dist", Path(temporary) / "example-tool")
-        server = ThreadingHTTPServer(("127.0.0.1", 0), partial(QuietHandler, directory=temporary))
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        try:
-            with sync_playwright() as p:
-                browser = p.chromium.launch()
-                page = browser.new_page(viewport={"width": 1280, "height": 1000})
-                errors = []
-                page.on("pageerror", lambda error: errors.append(str(error)))
-                page.goto(f"http://127.0.0.1:{server.server_port}/example-tool/")
-                page.locator("#sample").click()
-                assert page.locator("#output").input_value() == "Halifax\nLangley\nVancouver"
-                assert "1 duplicate removed" in page.locator("#status").inner_text()
-                page.locator("#input").fill('<img src=x onerror="alert(1)">\n<img src=x onerror="alert(1)">')
-                assert page.locator("#output").input_value() == '<img src=x onerror="alert(1)">'
-                assert page.locator("img").count() == 0
-                page.locator("#clear").click()
-                assert page.locator("#output").input_value() == ""
-                page.locator("#sample").click()
-                page.screenshot(path=str(screenshots / "desktop.png"), full_page=True)
-                page.set_viewport_size({"width": 390, "height": 844})
-                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-                page.screenshot(path=str(screenshots / "mobile.png"), full_page=True)
-                assert not errors, errors
-                browser.close()
-            print("Browser checks passed: project subpath, sample, clear, safe text and mobile layout")
-        finally:
-            server.shutdown()
-
-
-if __name__ == "__main__":
-    main()
+ screenshots=ROOT/'browser-checks';screenshots.mkdir(exist_ok=True)
+ with tempfile.TemporaryDirectory() as temporary:
+  shutil.copytree(ROOT/'dist',Path(temporary)/'dockdiary')
+  server=ThreadingHTTPServer(('127.0.0.1',0),partial(QuietHandler,directory=temporary));threading.Thread(target=server.serve_forever,daemon=True).start()
+  try:
+   with sync_playwright() as p:
+    browser=p.chromium.launch();page=browser.new_page(viewport={'width':1440,'height':1000});errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
+    page.route('**/assets/tool-metrics.js',lambda route:route.fulfill(status=200,body=''))
+    page.goto(f'http://127.0.0.1:{server.server_port}/dockdiary/')
+    page.locator('.station-result').first.wait_for()
+    assert int(page.locator('#station-count').inner_text().replace(',',''))>0
+    assert page.locator('#network').locator('option').count()>100
+    first_name=page.locator('.station-result strong').first.inner_text()
+    page.locator('#station-search').fill(first_name)
+    assert page.locator('.station-result').count()>0
+    page.locator('.station-result').first.click()
+    assert first_name == page.locator('#station-name').inner_text()
+    assert page.locator('#heatmap button').count()==168
+    page.locator('#heatmap button').first.click();assert 'observations' in page.locator('#cell-note').inner_text()
+    page.locator('#station-search').fill('No such station xyz');assert 'No matching stations' in page.locator('#stations').inner_text()
+    page.locator('#station-search').fill('');page.locator('.station-result').first.click()
+    with page.expect_download() as event:page.locator('#csv').click()
+    assert event.value.suggested_filename.endswith('.csv')
+    # Reject an API failure without destroying the currently displayed station.
+    name=page.locator('#station-name').inner_text()
+    page.route('https://api.citybik.es/v2/networks/*',lambda route:route.fulfill(status=503,body='unavailable'))
+    page.locator('#refresh').click();page.wait_for_function("document.querySelector('#status').textContent.includes('unchanged')")
+    assert page.locator('#station-name').inner_text()==name
+    page.screenshot(path=str(screenshots/'desktop.png'),full_page=True)
+    page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+    page.screenshot(path=str(screenshots/'mobile.png'),full_page=True)
+    assert not errors,errors;browser.close()
+   print('Browser checks passed: real capture, directory, filters, history, CSV, failure retention and mobile layout')
+  finally:server.shutdown()
+if __name__=='__main__':main()
