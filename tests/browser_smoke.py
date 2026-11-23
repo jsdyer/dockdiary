@@ -41,7 +41,11 @@ def main():
     page.locator('#refresh').click();page.wait_for_function("document.querySelector('#status').textContent.includes('unchanged')")
     assert page.locator('#station-name').inner_text()==name
     page.screenshot(path=str(screenshots/'desktop.png'),full_page=True)
-    page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+    page.set_viewport_size({'width':390,'height':844})
+    assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), page.evaluate('({viewport:innerWidth,page:document.documentElement.scrollWidth,detail:document.querySelector(".detail").getBoundingClientRect().width})')
+    # Wide weekday/hour tables scroll inside the detail column, never the page.
+    assert page.locator('.heatmap-wrap').evaluate('(el) => el.scrollWidth > el.clientWidth')
+    assert page.locator('.detail').evaluate('(el) => el.getBoundingClientRect().right <= innerWidth')
     page.screenshot(path=str(screenshots/'mobile.png'),full_page=True)
     assert not errors,errors;browser.close()
    print('Browser checks passed: real capture, directory, filters, history, CSV, failure retention and mobile layout')
