@@ -69,3 +69,11 @@ The page loads its own saved JSON by default. A manual lookup sends only the sel
 The app works from a project subpath, with relative assets. GitHub Pages serves `dist/`; no CNAME or Cloudflare service is required. UI source is in `web/`; pure transformations are in `web/model.mjs`; the standard-library collector is `scripts/collect.py`. `tests/browser_smoke.py` runs in CI, checking saved data, filtering, export, failure retention and mobile overflow.
 
 Related tools: [Trailglass](https://coolcode.ca/trailglass/) and [Road Pulse](https://coolcode.ca/roadpulse/).
+
+<!-- schedule-reliability -->
+## Schedule reliability
+
+Public GitHub repositories can have scheduled workflows disabled after 60 days of inactivity. A separate weekly [schedule guard](.github/workflows/schedule-guard.yml) calls GitHub's enable-workflow API for an explicit list of refresh workflows and itself. It can restore workflows disabled for inactivity, preserves manually disabled workflows, and runs independently of collection failures.
+
+This is an interim mitigation, not a scheduling guarantee: GitHub does not document active-workflow renewal as a permanent exemption, and scheduled runs can be delayed or dropped. A scheduler on our own Linux server is the planned independent trigger. The guard does not collect data, create dummy commits, or change source/check timestamps; successful collection and published data freshness still need monitoring.
+<!-- /schedule-reliability -->
