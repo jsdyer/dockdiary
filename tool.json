@@ -1,7 +1,7 @@
 {
   "id": "dockdiary",
   "title": "Dock Diary",
-  "description": "Find bike-share stations and compare how often bikes or return spaces were unavailable.",
+  "description": "Find bikes and return spaces in Vancouver, Toronto and Montréal, then compare a station’s saved readings by day and hour.",
   "category": "places",
   "tags": [
     "bike share",
@@ -9,7 +9,9 @@
     "Vancouver",
     "mobility",
     "availability",
-    "history"
+    "history",
+    "Toronto",
+    "Montréal"
   ],
   "icon": "bike",
   "url": "/dockdiary/",
@@ -20,5 +22,9 @@
     "mode": "mixed",
     "detail": "CityBikes station availability with retained hourly captures and optional current network lookups.",
     "cadence": "Hourly"
+  },
+  "result_directory": {
+    "path": "cities/",
+    "title": "Bike-share station availability by Canadian city"
   }
 }

@@ -41,6 +41,9 @@ def validate_config(config):
     for item in networks:
         if not SLUG.fullmatch(item.get('id', '')) or item['id'] in seen: raise ValueError('Invalid or duplicate network ID')
         seen.add(item['id']); ZoneInfo(item['timezone'])
+        cap = item.get('maxCaptures', config['maxCapturesPerNetwork'])
+        if type(cap) is not int or not 1 <= cap <= config['maxCapturesPerNetwork']:
+            raise ValueError('Network capture limit exceeds the configured archive bound')
     if config.get('defaultNetwork') not in seen: raise ValueError('Default network must be tracked')
     for key, low, high in [('historyDays', 1, 90), ('maxCapturesPerNetwork', 1, 2160), ('maxStationsPerNetwork', 1, 30000), ('requestTimeoutSeconds', 5, 90), ('staleMinutes', 1, 1440), ('minimumSamplesPerCell', 1, 100), ('liveCooldownSeconds', 10, 3600)]:
         if not isinstance(config.get(key), int) or not low <= config[key] <= high: raise ValueError('Invalid '+key)
@@ -102,7 +105,7 @@ def collect(root=ROOT):
         archive = normalize(fetch(API+'/'+setting['id'], config['requestTimeoutSeconds']), setting, now, config['maxStationsPerNetwork'])
         path = root/'web/data'/f"{setting['id']}.json"
         old = json.loads(path.read_text()) if path.exists() else None
-        archive = merge(old, archive, config)
+        archive = merge(old, archive, config | {'maxCapturesPerNetwork':setting.get('maxCaptures',config['maxCapturesPerNetwork'])})
         outputs[path.name] = archive
         summary.append({'id':setting['id'], 'label':setting.get('label',archive['network']['name']), 'file':path.name, 'capturedAt':now, 'captures':len(archive['captures']), 'stations':len(archive['captures'][-1]['rows'])})
     outputs['index.json'] = {'schema':SCHEMA, 'capturedAt':now, 'networks':summary, 'historyDays':config['historyDays'], 'cadence':'Hourly target; GitHub schedules may be late or skipped'}

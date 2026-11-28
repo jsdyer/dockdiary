@@ -47,6 +47,15 @@ def main():
     assert page.locator('.heatmap-wrap').evaluate('(el) => el.scrollWidth > el.clientWidth')
     assert page.locator('.detail').evaluate('(el) => el.getBoundingClientRect().right <= innerWidth')
     page.screenshot(path=str(screenshots/'mobile.png'),full_page=True)
+    # City guides and their individual station links must reopen the matching network and station.
+    toronto=page.get_by_role('link',name='Toronto',exact=True)
+    toronto.click();page.get_by_role('heading',name='Toronto bike-share stations and return spaces').wait_for()
+    assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+    page.locator('.city-page details summary').first.click()
+    station_link=page.locator('.city-page details[open] tbody th a').first
+    linked_name=station_link.inner_text()
+    station_link.click();page.wait_for_function("text=>document.querySelector('#station-name').textContent.trim()===text.trim()",arg=linked_name)
+    assert page.locator('#network').input_value()=='bixi-toronto'
     assert not errors,errors;browser.close()
    print('Browser checks passed: real capture, directory, filters, history, CSV, failure retention and mobile layout')
   finally:server.shutdown()

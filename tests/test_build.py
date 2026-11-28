@@ -4,8 +4,10 @@ import shutil
 import sys
 import tempfile
 import unittest
+from xml.etree import ElementTree as ET
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from build import ROOT, build, metadata
+from cities import summary
 
 
 class BuildTests(unittest.TestCase):
@@ -47,6 +49,27 @@ class BuildTests(unittest.TestCase):
                 self.assertEqual('/assets/tool-metrics.js' in page, enabled)
                 self.assertEqual(f'https://coolcode.ca/report/?tool={slug}' in page, enabled)
                 self.assertNotIn("{{", page)
+
+    def test_retained_networks_have_canonical_pages_and_station_links(self):
+        build(self.root)
+        dist = self.root / "dist"
+        config = json.loads((dist / "config.json").read_text())
+        index = json.loads((dist / "data/index.json").read_text())
+        locs = {loc.text for loc in ET.parse(dist / "sitemap.xml").iterfind(".//{*}loc")}
+        for item in index["networks"]:
+            network = next(n for n in config["trackedNetworks"] if n["id"] == item["id"])
+            path = f'cities/{network["slug"]}/'
+            self.assertIn('https://coolcode.ca/dockdiary/' + path, locs)
+            markup = (dist / path / "index.html").read_text()
+            self.assertIn(f'?network={network["id"]}&amp;station=', markup)
+            self.assertIn("Stations with spaces", markup)
+            self.assertIn(network["city"], markup)
+
+    def test_city_summary_distinguishes_zero_unknown_stale_and_paused(self):
+        at = "2026-11-28T10:00:00Z"
+        rows = [["a", 3, 0, at, True, True], ["b", None, 2, at, True, True],
+                ["c", 4, None, at, False, True], ["d", 8, 8, "2026-11-28T08:59:00Z", True, True]]
+        self.assertEqual(summary({"capturedAt": at, "rows": rows}, 60), ["1 of 1", "1 of 2"])
 
     def test_url_matches_tool_id(self):
         self.edit(url="/different/")

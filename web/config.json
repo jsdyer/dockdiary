@@ -1,7 +1,35 @@
 {
   "defaultNetwork": "mobibikes",
   "trackedNetworks": [
-    {"id": "mobibikes", "label": "Vancouver · Mobi", "timezone": "America/Vancouver"}
+    {
+      "id": "mobibikes",
+      "label": "Vancouver · Mobi",
+      "city": "Vancouver",
+      "province": "British Columbia",
+      "timezone": "America/Vancouver",
+      "operator": "https://www.mobibikes.ca/",
+      "slug": "vancouver"
+    },
+    {
+      "id": "bixi-toronto",
+      "label": "Toronto · Bike Share Toronto",
+      "city": "Toronto",
+      "province": "Ontario",
+      "timezone": "America/Toronto",
+      "operator": "https://bikesharetoronto.com/",
+      "maxCaptures": 168,
+      "slug": "toronto"
+    },
+    {
+      "id": "bixi-montreal",
+      "label": "Montréal · BIXI",
+      "city": "Montréal",
+      "province": "Québec",
+      "timezone": "America/Toronto",
+      "operator": "https://bixi.com/en/open-data/",
+      "maxCaptures": 168,
+      "slug": "montreal"
+    }
   ],
   "historyDays": 28,
   "maxCapturesPerNetwork": 672,

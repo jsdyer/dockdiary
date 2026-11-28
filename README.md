@@ -1,9 +1,9 @@
 # Dock Diary
 
-A bike-share station explorer and sampled-availability diary, starting with Vancouver's Mobi network. The public app reads retained hourly captures, searches the full CityBikes directory, supports a manual current lookup for any station-based network, and compares station observations by local weekday/hour. No account or API key is needed.
+A bike-share station explorer and sampled-availability diary, with retained captures for Vancouver’s Mobi, Bike Share Toronto and BIXI Montréal. The public app reads retained hourly captures, searches the full CityBikes directory, supports a manual current lookup for any station-based network, and compares station observations by local weekday/hour. No account or API key is needed.
 
 <!-- coolcode:guide -->
-Choose a network and use **Fetch current availability**, then select a station to inspect bikes, return spaces and a weekday/hour heatmap. Vancouver starts with a real retained capture; the history grows through hourly scheduled checks. An empty heatmap cell means no observations, not uninterrupted availability. A percentage is the share of sampled, distinct observations with zero bikes or spaces, not the share of time unavailable and not a trip count. Download **Save diary JSON** before closing the tab to retain manual lookups; imports and comparisons stay local. Edit **web/config.json** to add tracked networks and their time zones, then run **Dock Diary · Capture, check and publish** to begin retaining them.
+Choose a [saved city](https://coolcode.ca/dockdiary/cities/) to see the latest local check, how many reporting stations had a bike or return space, and when the retained window began. Each station links to its interactive weekday/hour history. Toronto and Montréal began with an actual capture on November 28, 2026. A saved reading is a sample and cannot establish how long a station stayed empty. For a current check, choose **Fetch current availability**. Download a diary to keep manual lookups.
 <!-- /coolcode:guide -->
 
 ## Use it
@@ -20,7 +20,7 @@ For example, three distinct Monday 08:00 station observations with bike counts 0
 ## Data and interpretation
 
 - Source: [CityBikes v2](https://docs.citybik.es/api/) and [API schema](https://api.citybik.es/v2/), supplied by [CityBikes](https://citybik.es/). This project visibly attributes and links CityBikes under its [terms](https://docs.citybik.es/api/tos).
-- Basic public access is limited to **300 requests per hour**. This collector normally uses two hourly requests: the directory and one configured network. Request a key from CityBikes only if a future deployment genuinely needs more; do not add one to browser code.
+- Basic public access is limited to **300 requests per hour**. This collector normally makes four requests each hour: the directory and three configured networks. Request a key from CityBikes only if a future deployment genuinely needs more; do not add one to browser code.
 - The initial directory was fetched on 23 November 2026 and contains **815 networks**. The initial Mobi capture contains **261 stations**. These are initial source counts, not limits; the UI derives them from the actual directory and selected capture.
 - Available bikes and empty docks are instantaneous source values. They are not demand, trip counts or durations. Maintenance, rebalancing and service pauses can affect them. Unknown values remain null; zero remains zero.
 - `capturedAt` is our retrieval timestamp. Each observation also preserves the provider's station update timestamp, using `extra.last_updated` when supplied and the CityBikes station timestamp otherwise. CityBikes' duplicated `+00:00Z` suffix is normalized, and naive source timestamps are treated as UTC.
@@ -30,18 +30,14 @@ For example, three distinct Monday 08:00 station observations with bike counts 0
 
 ## Expand or customize
 
-Edit **`web/config.json`**. Defaults are conveniences, never an exclusive UI list. The browser directory permits all station-based networks returned by CityBikes. To retain Toronto alongside Vancouver, append:
-
-```json
-{"id":"bixi-toronto","label":"Toronto · Bike Share Toronto","timezone":"America/Toronto"}
-```
+Edit **`web/config.json`**. Defaults are conveniences, never an exclusive UI list. The browser directory permits all station-based networks returned by CityBikes. The three configured cities share the same validated CityBikes collector. Operator references are [Mobi](https://www.mobibikes.ca/), [Bike Share Toronto](https://bikesharetoronto.com/) and [BIXI Montréal open data](https://bixi.com/en/open-data/). Toronto and Montréal retain at most 168 captures each to keep the larger station files manageable. Vancouver retains up to 672. All three have a 28-day age ceiling; each city guide gives its actual retained range. The offline build generates each city page and the tool sitemap from the same archived values.
 
 The full configuration fields are:
 
 | Field | Meaning |
 | --- | --- |
 | `defaultNetwork` | Initially displayed tracked network ID. Must be present in `trackedNetworks`. |
-| `trackedNetworks` | Objects with CityBikes `id`, descriptive `label` and an IANA `timezone`. |
+| `trackedNetworks` | Objects with CityBikes `id`, descriptive `label` and an IANA `timezone`. Optional fields include `city`, `province`, `slug`, `operator` and a per-network `maxCaptures` ceiling. |
 | `historyDays` | Rolling published history, initially 28 days; allowed 1–90. |
 | `maxCapturesPerNetwork` | Hard capture bound, initially 672; allowed 1–2160. Older captures remain in Git history after rolling out. |
 | `staleMinutes` | Maximum source age at retrieval for aggregate counts and heatmaps, initially 60. |
