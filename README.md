@@ -3,10 +3,12 @@
 A bike-share station explorer and sampled-availability diary, with retained captures for Vancouver’s Mobi, Bike Share Toronto and BIXI Montréal. The public app reads retained hourly captures, searches the full CityBikes directory, supports a manual current lookup for any station-based network, and compares station observations by local weekday/hour. No account or API key is needed.
 
 <!-- coolcode:guide -->
-Choose a [saved city](https://coolcode.ca/dockdiary/cities/) to see the latest local check, how many reporting stations had a bike or return space, and when the retained window began. Each station links to its interactive weekday/hour history. Toronto and Montréal began with an actual capture on November 28, 2026. A saved reading is a sample and cannot establish how long a station stayed empty. For a current check, choose **Fetch current availability**. Download a diary to keep manual lookups.
+Choose a saved city to see the latest local check, how many reporting stations had a bike or return space, and when the retained window began. Each station links to its interactive weekday/hour history. Toronto and Montréal began with an actual capture on November 28, 2026. A saved reading is a sample and cannot establish how long a station stayed empty. For a current check, choose Fetch current availability. Download a diary to keep manual lookups.
 <!-- /coolcode:guide -->
 
 ## Use it
+
+[Browse the Vancouver, Toronto and Montréal station guides](https://coolcode.ca/dockdiary/cities/).
 
 1. Open [Dock Diary](https://coolcode.ca/dockdiary/). The saved Mobi capture loads immediately without contacting CityBikes.
 2. Search stations by name or ID. Filter empty, full, paused or stale station readings. Select any result to see its timestamp, counts and an OpenStreetMap link.
